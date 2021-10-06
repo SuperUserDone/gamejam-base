@@ -25,12 +25,13 @@ include_directories(${DEP_INSTALL_DIR}/include)
 add_executable(base main.cpp)
 add_dependencies(base raylib_build)
 
-set(LIBS "")
-if(UNIX)
-set(LIBS dl pthread)
+if(WIN32)
+set(LIBS ${DEP_INSTALL_DIR}/lib/libraylib.lib)
+else()
+set(LIBS ${DEP_INSTALL_DIR}/lib/libraylib.a dl pthread)
 endif()
 
-target_link_libraries(base -L${DEP_INSTALL_DIR}/lib -lraylib ${LIBS})
+target_link_libraries(base ${LIBS})
 
 install(TARGETS base
         CONFIGURATIONS Release
