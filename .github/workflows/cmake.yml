@@ -77,5 +77,5 @@ jobs:
               uses: actions/upload-artifact@v2
               if: startsWith(matrix.build, 'Release')
               with:
-                  path: ${{ github.workspace }}/build/*.zip
+                  path: ${{ github.workspace }}/build/base.zip
                   name: ${{ matrix.os }}-build
