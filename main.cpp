@@ -82,7 +82,7 @@ int main(void)
     SetWindowState(FLAG_WINDOW_RESIZABLE);
 
     Player player = {0};
-    player.position = (Vector2){400, 280};
+    player.position = {400, 280};
     player.speed = 0;
     player.canJump = false;
     EnvItem envItems[] = {{{0, 0, 1000, 400}, 0, LIGHTGRAY},
@@ -95,7 +95,7 @@ int main(void)
 
     Camera2D camera = {0};
     camera.target = player.position;
-    camera.offset = (Vector2){screenWidth / 2.0f, screenHeight / 2.0f};
+    camera.offset = {screenWidth / 2.0f, screenHeight / 2.0f};
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
 
@@ -137,7 +137,7 @@ int main(void)
 
         if (IsKeyPressed(KEY_R)) {
             camera.zoom = 1.0f;
-            player.position = (Vector2){400, 280};
+            player.position = {400, 280};
         }
 
         if (IsKeyPressed(KEY_C)) cameraOption = (cameraOption + 1) % cameraUpdatersLength;
@@ -220,7 +220,7 @@ void UpdateCameraCenter(Camera2D *camera,
                         int width,
                         int height)
 {
-    camera->offset = (Vector2){width / 2.0f, height / 2.0f};
+    camera->offset = {width / 2.0f, height / 2.0f};
     camera->target = player->position;
 }
 
@@ -233,7 +233,7 @@ void UpdateCameraCenterInsideMap(Camera2D *camera,
                                  int height)
 {
     camera->target = player->position;
-    camera->offset = (Vector2){width / 2.0f, height / 2.0f};
+    camera->offset = {width / 2.0f, height / 2.0f};
     float minX = 1000, minY = 1000, maxX = -1000, maxY = -1000;
 
     for (int i = 0; i < envItemsLength; i++) {
@@ -244,8 +244,8 @@ void UpdateCameraCenterInsideMap(Camera2D *camera,
         maxY = fmaxf(ei->rect.y + ei->rect.height, maxY);
     }
 
-    Vector2 max = GetWorldToScreen2D((Vector2){maxX, maxY}, *camera);
-    Vector2 min = GetWorldToScreen2D((Vector2){minX, minY}, *camera);
+    Vector2 max = GetWorldToScreen2D({maxX, maxY}, *camera);
+    Vector2 min = GetWorldToScreen2D({minX, minY}, *camera);
 
     if (max.x < width) camera->offset.x = width - (max.x - width / 2);
     if (max.y < height) camera->offset.y = height - (max.y - height / 2);
@@ -265,7 +265,7 @@ void UpdateCameraCenterSmoothFollow(Camera2D *camera,
     static float minEffectLength = 10;
     static float fractionSpeed = 0.8f;
 
-    camera->offset = (Vector2){width / 2.0f, height / 2.0f};
+    camera->offset = {width / 2.0f, height / 2.0f};
     Vector2 diff = Vector2Subtract(player->position, camera->target);
     float length = Vector2Length(diff);
 
@@ -287,7 +287,7 @@ void UpdateCameraEvenOutOnLanding(Camera2D *camera,
     static int eveningOut = false;
     static float evenOutTarget;
 
-    camera->offset = (Vector2){width / 2.0f, height / 2.0f};
+    camera->offset = {width / 2.0f, height / 2.0f};
     camera->target.x = player->position.x;
 
     if (eveningOut) {
@@ -325,10 +325,10 @@ void UpdateCameraPlayerBoundsPush(Camera2D *camera,
     static Vector2 bbox = {0.2f, 0.2f};
 
     Vector2 bboxWorldMin = GetScreenToWorld2D(
-        (Vector2){(1 - bbox.x) * 0.5f * width, (1 - bbox.y) * 0.5f * height}, *camera);
+        {(1 - bbox.x) * 0.5f * width, (1 - bbox.y) * 0.5f * height}, *camera);
     Vector2 bboxWorldMax = GetScreenToWorld2D(
-        (Vector2){(1 + bbox.x) * 0.5f * width, (1 + bbox.y) * 0.5f * height}, *camera);
-    camera->offset = (Vector2){(1 - bbox.x) * 0.5f * width, (1 - bbox.y) * 0.5f * height};
+        {(1 + bbox.x) * 0.5f * width, (1 + bbox.y) * 0.5f * height}, *camera);
+    camera->offset = {(1 - bbox.x) * 0.5f * width, (1 - bbox.y) * 0.5f * height};
 
     if (player->position.x < bboxWorldMin.x) camera->target.x = player->position.x;
     if (player->position.y < bboxWorldMin.y) camera->target.y = player->position.y;
