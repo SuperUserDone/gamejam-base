@@ -3,13 +3,13 @@ project(base)
 
 set(CMAKE_CXX_STANDARD 17)
 
-include(ExternalProject)
+include(FetchContent)
 
 set(DEP_INSTALL_DIR
         "${CMAKE_BINARY_DIR}/extern")
 
-ExternalProject_Add(
-        raylib_build
+FetchContent_Declare(
+        raylib
         GIT_REPOSITORY "https://github.com/raysan5/raylib"
         GIT_TAG "3.7.0"
         GIT_SHALLOW 1
@@ -22,16 +22,18 @@ ExternalProject_Add(
 
 include_directories(${DEP_INSTALL_DIR}/include)
 
+FetchContent_MakeAvailable(raylib)
+
 add_executable(base main.cpp)
-add_dependencies(base raylib_build)
+add_dependencies(base raylib)
 
 if(WIN32)
-set(LIBS ${DEP_INSTALL_DIR}/lib/libraylib.lib)
+set(LIBS)
 else()
-set(LIBS ${DEP_INSTALL_DIR}/lib/libraylib.a dl pthread)
+set(LIBS  dl pthread)
 endif()
 
-target_link_libraries(base ${LIBS})
+target_link_libraries(base raylib ${LIBS})
 
 install(TARGETS base
         CONFIGURATIONS Release
