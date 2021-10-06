@@ -1,339 +1,161 @@
-/*******************************************************************************************
- *
- *   raylib [core] example - 2d camera platformer
- *
- *   This example has been created using raylib 2.5 (www.raylib.com)
- *   raylib is licensed under an unmodified zlib/libpng license (View raylib.h for details)
- *
- *   Example contributed by arvyy (@arvyy) and reviewed by Ramon Santamaria (@raysan5)
- *
- *   Copyright (c) 2019 arvyy (@arvyy)
- *
- ********************************************************************************************/
-
 #include "raylib.h"
-#include "raymath.h"
 
-#define G               400
-#define PLAYER_JUMP_SPD 350.0f
-#define PLAYER_HOR_SPD  200.0f
+#define BUBBLE_MAX   100
+#define GRAVITY      320
+#define FLOOR_HEIGHT 80
 
-typedef struct Player
+#define MAX_HEIGHT 12
+
+#define PLAYER_SPEED 200
+#define PLAYER_SIZE 30
+
+#define ROPE_SPEED 300
+
+struct Bubbles
 {
-    Vector2 position;
-    float speed;
-    bool canJump;
-} Player;
+    Vector2 positions[BUBBLE_MAX];
+    Vector2 velocities[BUBBLE_MAX];
 
-typedef struct EnvItem
+    int sizes[BUBBLE_MAX];
+};
+
+struct rope
 {
-    Rectangle rect;
-    int blocking;
-    Color color;
-} EnvItem;
+    int pos_x = 1;
+    int length = 1;
 
-void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float delta);
+    bool active = false;
+};
 
-void UpdateCameraCenter(Camera2D *camera,
-                        Player *player,
-                        EnvItem *envItems,
-                        int envItemsLength,
-                        float delta,
-                        int width,
-                        int height);
-void UpdateCameraCenterInsideMap(Camera2D *camera,
-                                 Player *player,
-                                 EnvItem *envItems,
-                                 int envItemsLength,
-                                 float delta,
-                                 int width,
-                                 int height);
-void UpdateCameraCenterSmoothFollow(Camera2D *camera,
-                                    Player *player,
-                                    EnvItem *envItems,
-                                    int envItemsLength,
-                                    float delta,
-                                    int width,
-                                    int height);
-void UpdateCameraEvenOutOnLanding(Camera2D *camera,
-                                  Player *player,
-                                  EnvItem *envItems,
-                                  int envItemsLength,
-                                  float delta,
-                                  int width,
-                                  int height);
-void UpdateCameraPlayerBoundsPush(Camera2D *camera,
-                                  Player *player,
-                                  EnvItem *envItems,
-                                  int envItemsLength,
-                                  float delta,
-                                  int width,
-                                  int height);
-
-int main(void)
+struct player
 {
-    // Initialization
-    //--------------------------------------------------------------------------------------
-    const int screenWidth = 800;
-    const int screenHeight = 450;
+    int pos_x = 300;
+};
 
-    InitWindow(screenWidth, screenHeight, "raylib [core] example - 2d camera");
+int main()
+{
+    Bubbles bubs{};
+    rope player_rope;
+    player p;
 
-    SetWindowState(FLAG_WINDOW_RESIZABLE);
 
-    Player player = {0};
-    player.position = {400, 280};
-    player.speed = 0;
-    player.canJump = false;
-    EnvItem envItems[] = {{{0, 0, 1000, 400}, 0, LIGHTGRAY},
-                          {{0, 400, 1000, 200}, 1, GRAY},
-                          {{300, 200, 400, 10}, 1, GRAY},
-                          {{250, 300, 100, 10}, 1, GRAY},
-                          {{650, 300, 100, 10}, 1, GRAY}};
+    int size_x = 800, size_y = 600;
 
-    int envItemsLength = sizeof(envItems) / sizeof(envItems[0]);
+    p.pos_x = size_x/2;
 
-    Camera2D camera = {0};
-    camera.target = player.position;
-    camera.offset = {screenWidth / 2.0f, screenHeight / 2.0f};
-    camera.rotation = 0.0f;
-    camera.zoom = 1.0f;
+    for (int i = 0; i < BUBBLE_MAX; i++) {
+        bubs.positions[i] = {0.f, 0.f};
+        bubs.sizes[i] = 0;
+        bubs.velocities[i] = {0.f, 0.f};
+    }
 
-    // Store pointers to the multiple update camera functions
-    void (*cameraUpdaters[])(Camera2D *, Player *, EnvItem *, int, float, int, int) = {
-        UpdateCameraCenter,
-        UpdateCameraCenterInsideMap,
-        UpdateCameraCenterSmoothFollow,
-        UpdateCameraEvenOutOnLanding,
-        UpdateCameraPlayerBoundsPush};
+    bubs.positions[0] = {size_x * 0.5f, size_y * 0.25f};
+    bubs.positions[1] = {size_x * 0.5f, size_y * 0.25f};
+    bubs.velocities[0] = {100.f, 0.f};
+    bubs.velocities[1] = {-100.f, 0.f};
+    bubs.sizes[0] = 4;
+    bubs.sizes[1] = 4;
 
-    int cameraOption = 0;
-    int cameraUpdatersLength = sizeof(cameraUpdaters) / sizeof(cameraUpdaters[0]);
+    InitWindow(size_x, size_y, "Bubble game");
 
-    char *cameraDescriptions[] = {
-        "Follow player center",
-        "Follow player center, but clamp to map edges",
-        "Follow player center; smoothed",
-        "Follow player center horizontally; updateplayer center vertically after landing",
-        "Player push camera on getting too close to screen edge"};
-
+    SetExitKey(0);
     SetTargetFPS(60);
-    //--------------------------------------------------------------------------------------
 
-    // Main game loop
     while (!WindowShouldClose()) {
-        // Update
-        //----------------------------------------------------------------------------------
-        float deltaTime = GetFrameTime();
-
-        UpdatePlayer(&player, envItems, envItemsLength, deltaTime);
-
-        camera.zoom += ((float)GetMouseWheelMove() * 0.05f);
-
-        if (camera.zoom > 3.0f)
-            camera.zoom = 3.0f;
-        else if (camera.zoom < 0.25f)
-            camera.zoom = 0.25f;
-
-        if (IsKeyPressed(KEY_R)) {
-            camera.zoom = 1.0f;
-            player.position = {400, 280};
-        }
-
-        if (IsKeyPressed(KEY_C)) cameraOption = (cameraOption + 1) % cameraUpdatersLength;
-
-        // Call update camera function by its pointer
-        cameraUpdaters[cameraOption](
-            &camera, &player, envItems, envItemsLength, deltaTime, screenWidth, screenHeight);
-        //----------------------------------------------------------------------------------
-
-        // Draw
-        //----------------------------------------------------------------------------------
         BeginDrawing();
 
-        ClearBackground(LIGHTGRAY);
+        ClearBackground(GRAY);
 
-        BeginMode2D(camera);
+        for (int i = 0; i < BUBBLE_MAX; i++) {
+            DrawRectangle(0, size_y - FLOOR_HEIGHT, size_x, FLOOR_HEIGHT, DARKGRAY);
 
-        for (int i = 0; i < envItemsLength; i++)
-            DrawRectangleRec(envItems[i].rect, envItems[i].color);
+            if (bubs.sizes[i] > 0)
+                DrawCircle((int)bubs.positions[i].x,
+                           (int)bubs.positions[i].y,
+                           (float)bubs.sizes[i] * 10,
+                           WHITE);
+        }
 
-        Rectangle playerRect = {player.position.x - 20, player.position.y - 40, 40, 40};
-        DrawRectangleRec(playerRect, RED);
+        if (player_rope.active)
+            DrawRectangle((float)player_rope.pos_x,
+                          (float)size_y - FLOOR_HEIGHT - (float)player_rope.length,
+                          2,
+                          (float)player_rope.length,
+                          RED);
 
-        EndMode2D();
-
-        DrawText("Controls:", 20, 20, 10, BLACK);
-        DrawText("- Right/Left to move", 40, 40, 10, DARKGRAY);
-        DrawText("- Space to jump", 40, 60, 10, DARKGRAY);
-        DrawText("- Mouse Wheel to Zoom in-out, R to reset zoom", 40, 80, 10, DARKGRAY);
-        DrawText("- C to change camera mode", 40, 100, 10, DARKGRAY);
-        DrawText("Current camera mode:", 20, 120, 10, BLACK);
-        DrawText(cameraDescriptions[cameraOption], 40, 140, 10, DARKGRAY);
-
+        DrawRectangle(p.pos_x, size_y-FLOOR_HEIGHT-PLAYER_SIZE, PLAYER_SIZE,PLAYER_SIZE, ORANGE);
         EndDrawing();
-        //----------------------------------------------------------------------------------
-    }
 
-    // De-Initialization
-    //--------------------------------------------------------------------------------------
-    CloseWindow(); // Close window and OpenGL context
-    //--------------------------------------------------------------------------------------
+        float dt = GetFrameTime();
 
-    return 0;
-}
-
-void UpdatePlayer(Player *player, EnvItem *envItems, int envItemsLength, float delta)
-{
-    if (IsKeyDown(KEY_LEFT)) player->position.x -= PLAYER_HOR_SPD * delta;
-    if (IsKeyDown(KEY_RIGHT)) player->position.x += PLAYER_HOR_SPD * delta;
-    if (IsKeyDown(KEY_SPACE) && player->canJump) {
-        player->speed = -PLAYER_JUMP_SPD;
-        player->canJump = false;
-    }
-
-    int hitObstacle = 0;
-    for (int i = 0; i < envItemsLength; i++) {
-        EnvItem *ei = envItems + i;
-        Vector2 *p = &(player->position);
-        if (ei->blocking && ei->rect.x <= p->x && ei->rect.x + ei->rect.width >= p->x &&
-            ei->rect.y >= p->y && ei->rect.y < p->y + player->speed * delta) {
-            hitObstacle = 1;
-            player->speed = 0.0f;
-            p->y = ei->rect.y;
+        if(IsKeyDown(KEY_SPACE) && !player_rope.active){
+           player_rope.active = true;
+           player_rope.length = 0;
+           player_rope.pos_x = p.pos_x + PLAYER_SIZE/2;
         }
-    }
 
-    if (!hitObstacle) {
-        player->position.y += player->speed * delta;
-        player->speed += G * delta;
-        player->canJump = false;
-    } else
-        player->canJump = true;
-}
+        if(IsKeyDown(KEY_A) && p.pos_x > 0)
+            p.pos_x -= PLAYER_SPEED * dt;
 
-void UpdateCameraCenter(Camera2D *camera,
-                        Player *player,
-                        EnvItem *envItems,
-                        int envItemsLength,
-                        float delta,
-                        int width,
-                        int height)
-{
-    camera->offset = {width / 2.0f, height / 2.0f};
-    camera->target = player->position;
-}
+        if(IsKeyDown(KEY_D) && p.pos_x+PLAYER_SIZE < size_x)
+            p.pos_x += PLAYER_SPEED * dt;
 
-void UpdateCameraCenterInsideMap(Camera2D *camera,
-                                 Player *player,
-                                 EnvItem *envItems,
-                                 int envItemsLength,
-                                 float delta,
-                                 int width,
-                                 int height)
-{
-    camera->target = player->position;
-    camera->offset = {width / 2.0f, height / 2.0f};
-    float minX = 1000, minY = 1000, maxX = -1000, maxY = -1000;
 
-    for (int i = 0; i < envItemsLength; i++) {
-        EnvItem *ei = envItems + i;
-        minX = fminf(ei->rect.x, minX);
-        maxX = fmaxf(ei->rect.x + ei->rect.width, maxX);
-        minY = fminf(ei->rect.y, minY);
-        maxY = fmaxf(ei->rect.y + ei->rect.height, maxY);
-    }
+        if(player_rope.active)
+        {
+            player_rope.length += ROPE_SPEED * dt;
 
-    Vector2 max = GetWorldToScreen2D({maxX, maxY}, *camera);
-    Vector2 min = GetWorldToScreen2D({minX, minY}, *camera);
+            if(player_rope.length > size_y - FLOOR_HEIGHT)
+                player_rope.active = false;
+        }
 
-    if (max.x < width) camera->offset.x = width - (max.x - width / 2);
-    if (max.y < height) camera->offset.y = height - (max.y - height / 2);
-    if (min.x > 0) camera->offset.x = width / 2 - min.x;
-    if (min.y > 0) camera->offset.y = height / 2 - min.y;
-}
+        for (int i = 0; i < BUBBLE_MAX; i++) {
+            if (bubs.sizes[i] > 0) {
 
-void UpdateCameraCenterSmoothFollow(Camera2D *camera,
-                                    Player *player,
-                                    EnvItem *envItems,
-                                    int envItemsLength,
-                                    float delta,
-                                    int width,
-                                    int height)
-{
-    static float minSpeed = 30;
-    static float minEffectLength = 10;
-    static float fractionSpeed = 0.8f;
+                bubs.positions[i].x += bubs.velocities[i].x * dt;
+                bubs.positions[i].y += bubs.velocities[i].y * dt;
 
-    camera->offset = {width / 2.0f, height / 2.0f};
-    Vector2 diff = Vector2Subtract(player->position, camera->target);
-    float length = Vector2Length(diff);
+                bubs.velocities[i].y += GRAVITY * dt;
 
-    if (length > minEffectLength) {
-        float speed = fmaxf(fractionSpeed * length, minSpeed);
-        camera->target = Vector2Add(camera->target, Vector2Scale(diff, speed * delta / length));
-    }
-}
+                if (bubs.positions[i].x - (bubs.sizes[i] * 10) < 0 ||
+                    bubs.positions[i].x + (bubs.sizes[i] * 10) > size_x)
+                    bubs.velocities[i].x *= -1.0;
 
-void UpdateCameraEvenOutOnLanding(Camera2D *camera,
-                                  Player *player,
-                                  EnvItem *envItems,
-                                  int envItemsLength,
-                                  float delta,
-                                  int width,
-                                  int height)
-{
-    static float evenOutSpeed = 700;
-    static int eveningOut = false;
-    static float evenOutTarget;
+                if (bubs.positions[i].y < size_y - (bubs.sizes[i] * 10 * MAX_HEIGHT) &&
+                    bubs.velocities[i].y < 0)
+                    bubs.velocities[i].y *= 0.5;
 
-    camera->offset = {width / 2.0f, height / 2.0f};
-    camera->target.x = player->position.x;
+                if (bubs.positions[i].y >= size_y - FLOOR_HEIGHT - (bubs.sizes[i] * 10)) {
+                    bubs.positions[i].y = size_y - FLOOR_HEIGHT - (bubs.sizes[i] * 10);
+                    bubs.velocities[i].y *= -1.0;
+                }
 
-    if (eveningOut) {
-        if (evenOutTarget > camera->target.y) {
-            camera->target.y += evenOutSpeed * delta;
+                if (CheckCollisionCircleRec(
+                        {bubs.positions[i].x, bubs.positions[i].y},
+                        (float)bubs.sizes[i] * 10,
+                        {(float)player_rope.pos_x,
+                         (float)size_y - FLOOR_HEIGHT - (float)player_rope.length,
+                         2,
+                         (float)player_rope.length}) && player_rope.active) {
+                    player_rope.active = false;
+                    bubs.velocities[i].y = 0;
+                    bubs.velocities[i].x *= -1;
+                    bubs.sizes[i]--;
 
-            if (camera->target.y > evenOutTarget) {
-                camera->target.y = evenOutTarget;
-                eveningOut = 0;
-            }
-        } else {
-            camera->target.y -= evenOutSpeed * delta;
+                    for(int j = 0; j < BUBBLE_MAX; j++)
+                        if(bubs.sizes[j] == 0)
+                        {
+                            bubs.velocities[j] = bubs.velocities[i];
+                            bubs.velocities[j].x *= -1;
+                            bubs.positions[j] = bubs.positions[i];
+                            bubs.sizes[j] = bubs.sizes[i];
+                            break;
+                        }
 
-            if (camera->target.y < evenOutTarget) {
-                camera->target.y = evenOutTarget;
-                eveningOut = 0;
+                }
+
+
             }
         }
-    } else {
-        if (player->canJump && (player->speed == 0) && (player->position.y != camera->target.y)) {
-            eveningOut = 1;
-            evenOutTarget = player->position.y;
-        }
     }
-}
-
-void UpdateCameraPlayerBoundsPush(Camera2D *camera,
-                                  Player *player,
-                                  EnvItem *envItems,
-                                  int envItemsLength,
-                                  float delta,
-                                  int width,
-                                  int height)
-{
-    static Vector2 bbox = {0.2f, 0.2f};
-
-    Vector2 bboxWorldMin = GetScreenToWorld2D(
-        {(1 - bbox.x) * 0.5f * width, (1 - bbox.y) * 0.5f * height}, *camera);
-    Vector2 bboxWorldMax = GetScreenToWorld2D(
-        {(1 + bbox.x) * 0.5f * width, (1 + bbox.y) * 0.5f * height}, *camera);
-    camera->offset = {(1 - bbox.x) * 0.5f * width, (1 - bbox.y) * 0.5f * height};
-
-    if (player->position.x < bboxWorldMin.x) camera->target.x = player->position.x;
-    if (player->position.y < bboxWorldMin.y) camera->target.y = player->position.y;
-    if (player->position.x > bboxWorldMax.x)
-        camera->target.x = bboxWorldMin.x + (player->position.x - bboxWorldMax.x);
-    if (player->position.y > bboxWorldMax.y)
-        camera->target.y = bboxWorldMin.y + (player->position.y - bboxWorldMax.y);
 }
